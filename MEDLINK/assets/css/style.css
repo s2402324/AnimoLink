@@ -1566,6 +1566,7 @@ body {
     border-radius: 8px;
     font-size: 15px;
     background: var(--input-light);
+    color: var(--text-dark);
 }
 
 .medical-request-form .form-group textarea {
@@ -2875,4 +2876,13 @@ body {
     .doctor-card {
         padding: 14px;
     }
+}
+
+/* Dark theme toggle icon visibility (override) */
+:root[data-theme="dark"] .theme-toggle .theme-icon-sun {
+    display: none;
+}
+
+:root[data-theme="dark"] .theme-toggle .theme-icon-moon {
+    display: flex;
 }

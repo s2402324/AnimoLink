@@ -196,6 +196,20 @@ $current_page = 'dashboard';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Dashboard - MediClear</title>
+    <script>
+        (function () {
+            try {
+                var storedTheme = localStorage.getItem('mediclear-theme');
+                if (storedTheme === 'dark' || storedTheme === 'light') {
+                    document.documentElement.setAttribute('data-theme', storedTheme);
+                } else if (!document.documentElement.getAttribute('data-theme')) {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            } catch (e) {
+                // If localStorage is unavailable, keep the default theme.
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
@@ -518,20 +532,6 @@ $current_page = 'dashboard';
                                         ?>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        
-                        <div class="panel-card">
-                            <div class="panel-card-header">
-                                <span class="panel-title">Plan Status</span>
-                            </div>
-                            <div class="panel-card-body">
-                                <p class="panel-text">Stay updated with your medical requirements, approvals, and upcoming expiries.</p>
-                                <ul class="panel-list">
-                                    <li>Track approved certificates</li>
-                                    <li>Monitor pending requests</li>
-                                    <li>Review rejected submissions</li>
-                                </ul>
                             </div>
                         </div>
                     </aside>

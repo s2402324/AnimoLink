@@ -5,80 +5,68 @@ require_once __DIR__ . '/config/database.php';
 
 $error = null;
 $success = null;
-$step = isset($_GET['step']) && $_GET['step'] === '2' ? '2' : '1';
-
-// If already on step 2, require verified user in session
-if ($step === '2') {
-    $reset_user_id = (int)($_SESSION['forgot_user_id'] ?? 0);
-    if ($reset_user_id <= 0) {
-        header('Location: forgot_password.php');
-        exit;
-    }
-}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($step === '1') {
-        $full_name = trim((string)($_POST['full_name'] ?? ''));
-        $email = trim((string)($_POST['email'] ?? ''));
-        $date_of_birth = trim((string)($_POST['date_of_birth'] ?? ''));
+    $email = trim((string)($_POST['email'] ?? ''));
 
-        if ($full_name === '' || $email === '' || $date_of_birth === '') {
-            $error = 'Please fill in full name, email, and date of birth.';
-        } else {
-            try {
-                $conn = db();
-                $stmt = $conn->prepare(
-                    'SELECT id, user_code, full_name FROM users
-                     WHERE TRIM(full_name) = ? AND TRIM(email) = ? AND date_of_birth = ?
-                     LIMIT 1'
-                );
-                $stmt->bind_param('sss', $full_name, $email, $date_of_birth);
-                $stmt->execute();
-                $user = $stmt->get_result()->fetch_assoc();
-
-                if (!$user) {
-                    $error = 'The information you entered does not match our records. Please try again or contact support.';
-                } else {
-                    $_SESSION['forgot_user_id'] = (int)$user['id'];
-                    header('Location: forgot_password.php?step=2');
-                    exit;
-                }
-            } catch (Throwable $e) {
-                error_log((string)$e);
-                $error = 'A temporary error occurred. Please try again.';
-            }
-        }
+    if ($email === '') {
+        $error = 'Please enter your email address.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Please enter a valid email address.';
     } else {
-        // step 2: set new password
-        $new_password = (string)($_POST['new_password'] ?? '');
-        $new_password_confirm = (string)($_POST['new_password_confirm'] ?? '');
-        $reset_user_id = (int)($_SESSION['forgot_user_id'] ?? 0);
+        try {
+            $conn = db();
 
-        if ($reset_user_id <= 0) {
-            header('Location: forgot_password.php');
-            exit;
-        }
+            $stmt = $conn->prepare('SELECT id, email FROM users WHERE TRIM(email) = ? LIMIT 1');
+            $stmt->bind_param('s', $email);
+            $stmt->execute();
+            $user = $stmt->get_result()->fetch_assoc();
 
-        if (strlen($new_password) < 6) {
-            $error = 'Password must be at least 6 characters.';
-        } elseif ($new_password !== $new_password_confirm) {
-            $error = 'Passwords do not match.';
-        } else {
-            try {
-                $conn = db();
-                $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
-                $stmt = $conn->prepare('UPDATE users SET password_hash = ? WHERE id = ? LIMIT 1');
-                $stmt->bind_param('si', $password_hash, $reset_user_id);
-                $stmt->execute();
+            if ($user) {
+                $user_id = (int)$user['id'];
 
-                unset($_SESSION['forgot_user_id']);
-                $_SESSION['success_message'] = 'Your password has been reset. You can now sign in.';
-                header('Location: index.php');
-                exit;
-            } catch (Throwable $e) {
-                error_log((string)$e);
-                $error = 'A temporary error occurred. Please try again.';
+                $delete = $conn->prepare('DELETE FROM password_resets WHERE user_id = ?');
+                $delete->bind_param('i', $user_id);
+                $delete->execute();
+
+                $token = bin2hex(random_bytes(32));
+                $token_hash = hash('sha256', $token);
+
+                $expires_at = (new DateTimeImmutable('+1 hour'))->format('Y-m-d H:i:s');
+
+                $insert = $conn->prepare(
+                    'INSERT INTO password_resets (user_id, token_hash, expires_at, created_at)
+                     VALUES (?, ?, ?, NOW())'
+                );
+                $insert->bind_param('iss', $user_id, $token_hash, $expires_at);
+                $insert->execute();
+
+                $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+                $host = (string)($_SERVER['HTTP_HOST'] ?? 'localhost');
+                $base_path = rtrim(dirname((string)($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
+                $reset_link = $scheme . '://' . $host . $base_path . '/reset_password.php?token=' . urlencode($token);
+
+                $to = (string)$user['email'];
+                $subject = 'Password Reset Request';
+                $message = "Hello,\n\n"
+                    . "We received a request to reset the password for your account.\n"
+                    . "If you made this request, please click the link below (or paste it into your browser) to set a new password:\n\n"
+                    . $reset_link . "\n\n"
+                    . "This link will expire in 1 hour. If you did not request a password reset, you can safely ignore this email.\n\n"
+                    . "Regards,\nMediClear";
+
+                $from_host = $host !== '' ? $host : 'example.com';
+                $from = 'no-reply@' . $from_host;
+                $headers = "From: {$from}\r\n";
+                $headers .= "Reply-To: {$from}\r\n";
+
+                @mail($to, $subject, $message, $headers);
             }
+
+            $success = 'If an account with that email exists, a password reset link has been sent.';
+        } catch (Throwable $e) {
+            error_log((string)$e);
+            $error = 'A temporary error occurred. Please try again.';
         }
     }
 }
@@ -101,46 +89,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <div class="login-header">
-                <h1><?php echo $step === '2' ? 'Set New Password' : 'Forgot Password'; ?></h1>
-                <p><?php echo $step === '2' ? 'Enter your new password below.' : 'Enter your full name, email, and date of birth to reset your password.'; ?></p>
+                <h1>Forgot Password</h1>
+                <p>Enter your registered email address and we will send you a secure link to reset your password.</p>
             </div>
 
             <?php if ($error): ?>
                 <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
 
-            <?php if ($step === '1'): ?>
-                <form method="POST" action="">
-                    <div class="form-group">
-                        <label for="full_name">Full Name *</label>
-                        <input type="text" id="full_name" name="full_name" placeholder="As registered" required
-                               value="<?php echo htmlspecialchars((string)($_POST['full_name'] ?? '')); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label for="email">Email *</label>
-                        <input type="email" id="email" name="email" placeholder="Email used when you registered" required
-                               value="<?php echo htmlspecialchars((string)($_POST['email'] ?? '')); ?>">
-                    </div>
-                    <div class="form-group">
-                        <label for="date_of_birth">Date of Birth *</label>
-                        <input type="date" id="date_of_birth" name="date_of_birth" required
-                               value="<?php echo htmlspecialchars((string)($_POST['date_of_birth'] ?? '')); ?>">
-                    </div>
-                    <button type="submit" class="btn-primary">Continue</button>
-                </form>
-            <?php else: ?>
-                <form method="POST" action="">
-                    <div class="form-group">
-                        <label for="new_password">New Password *</label>
-                        <input type="password" id="new_password" name="new_password" placeholder="At least 6 characters" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="new_password_confirm">Confirm New Password *</label>
-                        <input type="password" id="new_password_confirm" name="new_password_confirm" placeholder="Confirm password" required>
-                    </div>
-                    <button type="submit" class="btn-primary">Reset Password</button>
-                </form>
+            <?php if ($success): ?>
+                <div class="success-message"><?php echo htmlspecialchars($success); ?></div>
             <?php endif; ?>
+
+            <form method="POST" action="">
+                <div class="form-group">
+                    <label for="email">Email *</label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="Email used when you registered"
+                        required
+                        value="<?php echo htmlspecialchars((string)($_POST['email'] ?? '')); ?>"
+                    >
+                </div>
+                <button type="submit" class="btn-primary">Send reset link</button>
+            </form>
 
             <div class="auth-footer">
                 <a class="auth-link" href="index.php">Back to Sign in</a>

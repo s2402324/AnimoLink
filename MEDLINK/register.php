@@ -54,8 +54,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please enter a valid email address';
     } elseif (!preg_match('/@usls\.edu\.ph$/i', $email)) {
         $error = 'Please use your @usls.edu.ph email address';
-    } elseif (strlen($password) < 6) {
-        $error = 'Password must be at least 6 characters';
+    } elseif (strlen($password) < 8) {
+        $error = 'Password must be at least 8 characters long and include at least one uppercase letter, one number, and one special character (!@#$%^&*).';
+    } elseif (!preg_match('/^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/', $password)) {
+        $error = 'Password must be at least 8 characters long and include at least one uppercase letter, one number, and one special character (!@#$%^&*).';
     } elseif ($password !== $password_confirm) {
         $error = 'Passwords do not match';
     }
@@ -159,6 +161,110 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             min-height: 52px;
             background: var(--input-mint);
         }
+
+        /* Inline field errors */
+        #registerForm .form-group .field-error-message {
+            margin-top: 4px;
+            font-size: 0.78rem;
+            color: #ffb3b3;
+        }
+        #registerForm .form-group input.has-error,
+        #registerForm .form-group select.has-error,
+        #registerForm .email-input-wrapper.has-error {
+            border-color: #ff5252;
+            box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.7);
+        }
+
+        /* Email local-part input with fixed domain */
+        #registerForm .email-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 12px;
+            height: 52px;
+            border-radius: 12px;
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+        }
+        #registerForm .email-input-wrapper input[type="text"] {
+            flex: 1;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: inherit;
+            padding: 0;
+            margin: 0;
+        }
+        #registerForm .email-domain {
+            padding-left: 10px;
+            margin-left: 6px;
+            border-left: 1px solid rgba(0, 0, 0, 0.12);
+            background: transparent;
+            color: rgba(0, 0, 0, 0.7);
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+
+        /* Password strength indicator */
+        .password-strength-wrapper {
+            margin-top: 6px;
+        }
+        .password-strength-meter {
+            position: relative;
+            width: 100%;
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, 0.18);
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+        .password-strength-meter-fill {
+            height: 100%;
+            width: 0;
+            background: #e53935;
+            transition: width 0.2s ease, background-color 0.2s ease;
+        }
+        .password-strength-label {
+            display: block;
+            font-size: 0.78rem;
+            color: #ffffff;
+        }
+        .password-rules {
+            list-style: none;
+            padding: 4px 0 0;
+            margin: 0;
+            font-size: 0.78rem;
+            color: #ffffff;
+        }
+        .password-rules li {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .password-rules li::before {
+            content: '•';
+            font-size: 0.9em;
+        }
+        .password-rules li.met {
+            color: #C8E6C9;
+        }
+        .password-rules li.met::before {
+            content: '✓';
+        }
+
+        /* Confirm password pop-out */
+        .confirm-password-group {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transform: translateY(-4px);
+            transition: max-height 0.25s ease, opacity 0.25s ease, transform 0.25s ease;
+        }
+        .confirm-password-group.visible {
+            max-height: 120px;
+            opacity: 1;
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body class="login-page allow-scroll">
@@ -179,7 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="error-message"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
 
-            <form method="POST" action="" id="registerForm">
+            <form method="POST" action="" id="registerForm" novalidate>
                 <div class="role-toggle">
                     <input type="radio" name="role" id="studentRole" value="student" <?php echo (($_POST['role'] ?? 'student') !== 'clinic') ? 'checked' : ''; ?>>
                     <input type="radio" name="role" id="clinicRole" value="clinic" <?php echo (($_POST['role'] ?? '') === 'clinic') ? 'checked' : ''; ?>>
@@ -201,18 +307,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <div class="form-group">
-                    <label for="email">Email *</label>
+                    <label for="email_local">Email *</label>
+                    <div class="email-input-wrapper">
+                        <input
+                            type="text"
+                            id="email_local"
+                            placeholder="Enter your email"
+                            required
+                            inputmode="email"
+                            autocomplete="off"
+                            value="<?php
+                                $postedEmail = (string)($_POST['email'] ?? '');
+                                $localPart = preg_replace('/@usls\.edu\.ph$/i', '', $postedEmail);
+                                echo htmlspecialchars($localPart, ENT_QUOTES, 'UTF-8');
+                            ?>"
+                        >
+                        <span class="email-domain">@usls.edu.ph</span>
+                    </div>
                     <input
-                        type="email"
+                        type="hidden"
                         id="email"
                         name="email"
-                        placeholder="name@usls.edu.ph"
-                        required
-                        inputmode="email"
-                        autocomplete="email"
-                        pattern="^[A-Za-z0-9._%+-]+@usls\.edu\.ph$"
-                        title="Please use your @usls.edu.ph email address"
-                        value="<?php echo htmlspecialchars((string)($_POST['email'] ?? '')); ?>"
+                        value="<?php echo htmlspecialchars((string)($_POST['email'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                     >
                 </div>
 
@@ -317,12 +433,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <div class="form-group">
                     <label for="password">Password *</label>
-                    <input type="password" id="password" name="password" placeholder="Create a password" required>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Create a password"
+                        required
+                        autocomplete="new-password"
+                    >
                 </div>
 
-                <div class="form-group">
+                <div class="form-group confirm-password-group">
                     <label for="password_confirm">Confirm Password *</label>
-                    <input type="password" id="password_confirm" name="password_confirm" placeholder="Confirm your password" required>
+                    <input
+                        type="password"
+                        id="password_confirm"
+                        name="password_confirm"
+                        placeholder="Confirm your password"
+                        required
+                        autocomplete="new-password"
+                    >
+                </div>
+
+                <div class="password-strength-wrapper">
+                    <div class="password-strength-meter" id="passwordStrengthMeter">
+                        <div class="password-strength-meter-fill" id="passwordStrengthFill"></div>
+                    </div>
+                    <small class="password-strength-label" id="passwordStrengthLabel">
+                        Password must be at least 8 characters and include at least one uppercase letter, one number, and one special character (!@#$%^&*).
+                    </small>
+                    <ul class="password-rules">
+                        <li data-password-rule="length">Minimum 8 characters</li>
+                        <li data-password-rule="uppercase">At least 1 uppercase letter</li>
+                        <li data-password-rule="number">At least 1 number</li>
+                        <li data-password-rule="special">At least 1 special character (!@#$%^&*)</li>
+                    </ul>
                 </div>
 
                 <button type="submit" class="btn-primary">Create Account</button>
@@ -345,12 +490,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const idLabel = document.getElementById('idLabel');
             const idInput = document.getElementById('student_id');
 
+            const fullNameInput = document.getElementById('full_name');
+            const emailLocalInput = document.getElementById('email_local');
+            const emailHiddenInput = document.getElementById('email');
+            const dateOfBirthInput = document.getElementById('date_of_birth');
+
             const academicFields = document.getElementById('academicFields');
             const courseSelect = document.getElementById('course');
             const yearSelect = document.getElementById('year');
             const sectionSelect = document.getElementById('section');
             const previewInput = document.getElementById('courseYearSectionPreview');
             const hiddenYearLevel = document.getElementById('year_level');
+
+            const passwordInput = document.getElementById('password');
+            const passwordConfirmInput = document.getElementById('password_confirm');
+            const strengthMeter = document.getElementById('passwordStrengthMeter');
+            const strengthFill = document.getElementById('passwordStrengthFill');
+            const strengthLabel = document.getElementById('passwordStrengthLabel');
+            const confirmGroup = document.querySelector('.confirm-password-group');
 
             const fiveYearCourses = (yearSelect?.dataset?.fiveYearCourses || '')
                 .split(',')
@@ -359,6 +516,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             function isStudent() {
                 return !!(studentRole && studentRole.checked);
+            }
+
+            function clearFieldError(input) {
+                if (!input) return;
+                input.classList.remove('has-error');
+                const group = input.closest('.form-group') || input.parentElement;
+                if (!group) return;
+                const wrapper = group.querySelector('.email-input-wrapper');
+                if (wrapper) {
+                    wrapper.classList.remove('has-error');
+                }
+                const existing = group.querySelector('.field-error-message');
+                if (existing) existing.remove();
+            }
+
+            function setFieldError(input, message) {
+                if (!input) return;
+                clearFieldError(input);
+                input.classList.add('has-error');
+                const group = input.closest('.form-group') || input.parentElement;
+                if (!group) return;
+                const wrapper = group.querySelector('.email-input-wrapper');
+                if (wrapper && input === emailLocalInput) {
+                    wrapper.classList.add('has-error');
+                }
+                const div = document.createElement('div');
+                div.className = 'field-error-message';
+                div.textContent = message;
+                group.appendChild(div);
             }
 
             function syncRoleUI() {
@@ -421,6 +607,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (previewInput) previewInput.value = (c && ys) ? (c + '-' + ys) : '';
             }
 
+            function evaluatePassword(pw) {
+                const hasLength = pw.length >= 8;
+                const hasUpper = /[A-Z]/.test(pw);
+                const hasNumber = /\d/.test(pw);
+                const hasSpecial = /[!@#$%^&*]/.test(pw);
+                let score = 0;
+                if (hasLength) score++;
+                if (hasUpper) score++;
+                if (hasNumber) score++;
+                if (hasSpecial) score++;
+                return { score: score, hasLength: hasLength, hasUpper: hasUpper, hasNumber: hasNumber, hasSpecial: hasSpecial };
+            }
+
+            function syncConfirmVisibility() {
+                if (!confirmGroup || !passwordInput) return;
+                const hasValue = (passwordInput.value || '').length > 0;
+                if (hasValue) {
+                    confirmGroup.classList.add('visible');
+                } else {
+                    confirmGroup.classList.remove('visible');
+                    if (passwordConfirmInput) {
+                        passwordConfirmInput.value = '';
+                    }
+                }
+            }
+
+            function updatePasswordStrength() {
+                if (!passwordInput || !strengthMeter || !strengthFill || !strengthLabel) return;
+                const value = passwordInput.value || '';
+                const result = evaluatePassword(value);
+                const score = result.score;
+                const percent = (score / 4) * 100;
+
+                strengthFill.style.width = percent + '%';
+
+                let label = 'Very weak';
+                let color = '#e53935';
+                if (score === 2) {
+                    label = 'Weak';
+                    color = '#fb8c00';
+                } else if (score === 3) {
+                    label = 'Good';
+                    color = '#fdd835';
+                } else if (score === 4) {
+                    label = 'Strong';
+                    color = '#43a047';
+                }
+                strengthFill.style.backgroundColor = color;
+                strengthLabel.textContent = value
+                    ? ('Strength: ' + label)
+                    : 'Password must be at least 8 characters and include at least one uppercase letter, one number, and one special character (!@#$%^&*).';
+
+                document.querySelectorAll('.password-rules li[data-password-rule]').forEach(function (el) {
+                    const rule = el.getAttribute('data-password-rule');
+                    let ok = false;
+                    if (rule === 'length') ok = result.hasLength;
+                    else if (rule === 'uppercase') ok = result.hasUpper;
+                    else if (rule === 'number') ok = result.hasNumber;
+                    else if (rule === 'special') ok = result.hasSpecial;
+                    if (ok) {
+                        el.classList.add('met');
+                    } else {
+                        el.classList.remove('met');
+                    }
+                });
+            }
+
             if (studentRole) studentRole.addEventListener('change', syncRoleUI);
             if (clinicRole) clinicRole.addEventListener('change', syncRoleUI);
             if (courseSelect) {
@@ -432,14 +685,130 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (yearSelect) yearSelect.addEventListener('change', updatePreview);
             if (sectionSelect) sectionSelect.addEventListener('change', updatePreview);
 
-            form.addEventListener('submit', function () {
+            if (idInput) {
+                idInput.setAttribute('inputmode', 'numeric');
+                idInput.addEventListener('input', function () {
+                    const digitsOnly = (idInput.value || '').replace(/\D+/g, '');
+                    if (idInput.value !== digitsOnly) {
+                        idInput.value = digitsOnly;
+                    }
+                    clearFieldError(idInput);
+                });
+            }
+
+            if (passwordInput) {
+                passwordInput.addEventListener('input', function () {
+                    updatePasswordStrength();
+                    syncConfirmVisibility();
+                    clearFieldError(passwordInput);
+                });
+                passwordInput.addEventListener('blur', updatePasswordStrength);
+            }
+
+            [idInput, fullNameInput, emailLocalInput, dateOfBirthInput, courseSelect, yearSelect, sectionSelect, passwordConfirmInput].forEach(function (input) {
+                if (!input) return;
+                input.addEventListener('input', function () {
+                    clearFieldError(input);
+                });
+            });
+
+            form.addEventListener('submit', function (e) {
                 updatePreview();
+
+                // Clear previous errors
+                form.querySelectorAll('.field-error-message').forEach(function (el) { el.remove(); });
+                form.querySelectorAll('.has-error').forEach(function (el) { el.classList.remove('has-error'); });
+
+                let hasError = false;
+
+                function requireField(input, message) {
+                    if (!input) return;
+                    const value = (input.value || '').trim();
+                    if (!value) {
+                        if (!hasError) input.focus();
+                        hasError = true;
+                        setFieldError(input, message);
+                    }
+                }
+
+                // Basic required fields
+                if (idInput) {
+                    requireField(idInput, isStudent() ? 'Student ID required.' : 'Staff ID required.');
+                }
+                requireField(fullNameInput, 'Full name required.');
+                requireField(emailLocalInput, 'Email required.');
+
+                // Build full email from local part and validate
+                if (emailLocalInput && emailHiddenInput) {
+                    const local = (emailLocalInput.value || '').trim();
+                    emailHiddenInput.value = local ? (local + '@usls.edu.ph') : '';
+
+                    if (local) {
+                        const emailVal = emailHiddenInput.value;
+                        const basicPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                        if (!basicPattern.test(emailVal)) {
+                            if (!hasError) emailLocalInput.focus();
+                            hasError = true;
+                            setFieldError(emailLocalInput, 'Please enter a valid email address.');
+                        } else if (!/@usls\.edu\.ph$/i.test(emailVal)) {
+                            if (!hasError) emailLocalInput.focus();
+                            hasError = true;
+                            setFieldError(emailLocalInput, 'Please use your @usls.edu.ph email address.');
+                        }
+                    }
+                }
+
+                if (isStudent()) {
+                    requireField(dateOfBirthInput, 'Date of birth required.');
+                    requireField(courseSelect, 'Course required.');
+                    requireField(yearSelect, 'Year level required.');
+                    requireField(sectionSelect, 'Section required.');
+                }
+
+                requireField(passwordInput, 'Password required.');
+                requireField(passwordConfirmInput, 'Please confirm your password.');
+
+                // Password strength validation
+                if (passwordInput) {
+                    const pw = passwordInput.value || '';
+                    if (pw) {
+                        const result = evaluatePassword(pw);
+                        if (!result.hasLength || !result.hasUpper || !result.hasNumber || !result.hasSpecial) {
+                            if (!hasError) passwordInput.focus();
+                            hasError = true;
+                            setFieldError(
+                                passwordInput,
+                                'Password must be at least 8 characters and include at least one uppercase letter, one number, and one special character (!@#$%^&*).'
+                            );
+                            updatePasswordStrength();
+                        }
+                    }
+                }
+
+                // Password match
+                if (!hasError && passwordInput && passwordConfirmInput) {
+                    const pw = passwordInput.value || '';
+                    const pw2 = passwordConfirmInput.value || '';
+                    if (pw && pw2 && pw !== pw2) {
+                        hasError = true;
+                        setFieldError(passwordConfirmInput, 'Passwords do not match.');
+                        passwordConfirmInput.focus();
+                    }
+                }
+
+                if (hasError) {
+                    e.preventDefault();
+                    syncConfirmVisibility();
+                    return;
+                }
             });
 
             // Initial render
             syncRoleUI();
             rebuildYearOptionsIfNeeded();
             updatePreview();
+            updatePasswordStrength();
+            syncConfirmVisibility();
         })();
     </script>
 </body>

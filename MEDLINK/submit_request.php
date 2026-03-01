@@ -241,6 +241,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Medical Certification Request - MediClear</title>
+    <script>
+        (function () {
+            try {
+                var storedTheme = localStorage.getItem('mediclear-theme');
+                if (storedTheme === 'dark' || storedTheme === 'light') {
+                    document.documentElement.setAttribute('data-theme', storedTheme);
+                } else if (!document.documentElement.getAttribute('data-theme')) {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            } catch (e) {
+                // If localStorage is unavailable, keep the default theme.
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>

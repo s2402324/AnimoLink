@@ -305,6 +305,20 @@ $build_filter_url = static function (string $status, string $course): string {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinic Dashboard - MediClear</title>
+    <script>
+        (function () {
+            try {
+                var storedTheme = localStorage.getItem('mediclear-theme');
+                if (storedTheme === 'dark' || storedTheme === 'light') {
+                    document.documentElement.setAttribute('data-theme', storedTheme);
+                } else if (!document.documentElement.getAttribute('data-theme')) {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+            } catch (e) {
+                // If localStorage is unavailable, keep the default theme.
+            }
+        })();
+    </script>
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
@@ -651,13 +665,13 @@ $build_filter_url = static function (string $status, string $course): string {
                 if (rejectInput) rejectInput.value = '';
 
                 if (action === 'approve') {
-                    titleEl.textContent = 'Approve Request';
-                    textEl.textContent = `Approve ${requestId}? This will generate the medical certificate.`;
+                    titleEl.textContent = `Approve ${requestId}`;
+                    textEl.textContent = 'Are you sure you want to approve this medical request? This action will generate the medical certificate.';
                     rejectBox.style.display = 'none';
                     confirmBtn.textContent = 'Approve';
                 } else {
-                    titleEl.textContent = 'Reject Request';
-                    textEl.textContent = `Reject ${requestId}? A reason is required.`;
+                    titleEl.textContent = `Reject ${requestId}`;
+                    textEl.textContent = 'Please provide a brief reason for rejecting this medical request.';
                     rejectBox.style.display = 'block';
                     confirmBtn.textContent = 'Reject';
                 }
